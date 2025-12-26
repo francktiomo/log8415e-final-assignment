@@ -1,17 +1,17 @@
 import boto3
 import logging
 
-from manage_instances import launch_instance
+from manage_instances import *
 
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(),              # print to console
-        logging.FileHandler("lab_demo.log")   # save to file
-    ]
+  level=logging.INFO,
+  format="%(asctime)s [%(levelname)s] %(message)s",
+  handlers=[
+    logging.StreamHandler(),
+    logging.FileHandler("lab_demo.log")
+  ]
 )
 logger = logging.getLogger(__name__)
 
@@ -25,15 +25,19 @@ def main():
   logger.info('========== AWS EC2 AUTOMATION SCRIPT STARTED ==========')
 
   logger.info('[STEP 1] Launching manager instance')
-  manager_script = read_script('./user_data/manager_mysql_setup.sh')
-  manager = launch_instance(instance_name='manager', type='t2.micro', user_data=manager_script)
+  sakila_script = read_script('./user_data/sakila_install.sh')
+  manager = launch_instance(instance_name='manager', type='t2.micro', user_data=sakila_script)
 
   logger.info('[STEP 2] Launching worker instances')
-  worker_script = read_script('./user_data/worker_mysql_setup.sh')
-  worker_script = worker_script.replace("__MANAGER_IP__", manager.private_ip_address)
-  worker1 = launch_instance(instance_name="worker-1", type='t2.micro', user_data=worker_script)
-  worker2 = launch_instance(instance_name="worker-2", type='t2.micro', user_data=worker_script)
+  worker1 = launch_instance(instance_name="worker-1", type='t2.micro', user_data=sakila_script)
+  worker2 = launch_instance(instance_name="worker-2", type='t2.micro', user_data=sakila_script)
+  
+  logger.info('[STEP 3] Check Sakila installation on instances')
+  instances = [manager, worker1, worker2]
+  check_sakila_installation(instances)
 
+  logger.info('[STEP 4] Configure manager and workers for replication')
+  configure_db_for_replication(instances)
 
 if __name__ == '__main__':
   main()
