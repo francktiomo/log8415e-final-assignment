@@ -3,6 +3,7 @@ import paramiko
 
 from botocore.exceptions import ClientError
 from paramiko import SSHClient
+from scp import SCPClient
 from typing import Dict, List, Tuple
 
 UBUNTU_AMI = 'ami-0ecb62995f68bb549'
@@ -24,6 +25,33 @@ def create_ssh_client(ip, key_path="log8415-final.pem", username="ubuntu") -> SS
   ssh.connect(ip, username=username, key_filename=key_path)
 
   return ssh
+
+
+def upload_files_to_instance(ip, key_path="log8415-final.pem", local_folder='.', distant_folder="~", files=[]):
+  """
+  Copy a list of files to EC2 instances via SSH and SCP
+  Args:
+    ip (str): Public IP of an EC2 instance
+    key_path (str): Path to the private key (.pem)
+    local_folder (str): Local folder containing files
+    distant_folder (str): Distant folder where we want to copy files
+    files (list[str]): list with filenames to copy
+  """
+  print(f"Transferring files to the {local_folder} : {files}")
+
+  ssh = create_ssh_client(ip, key_path)
+
+  ssh.exec_command(f"mkdir -p {distant_folder}")
+
+  with SCPClient(ssh.get_transport()) as scp:
+    for file in files:
+      local_path = f"{local_folder}/{file}"
+      remote_path = f"{distant_folder}/{file}"
+      scp.put(local_path, remote_path)
+      print(f"{file} → {ip}:{remote_path}")
+
+  ssh.close()
+
 
 def ensure_ports_open(ec2, sg_id, ports):
   """
@@ -56,10 +84,9 @@ def ensure_ports_open(ec2, sg_id, ports):
             pass
           else:
             raise
-      else:
-        print(f"Port {port} already opened in SG {sg_id}")
   except ClientError as e:
     print(f"Error while updating security group {sg_id}: {e}")
+
 
 def get_default_resources(ec2, verbose=False):
   """
@@ -99,6 +126,7 @@ def get_default_resources(ec2, verbose=False):
     print(f"default security group: {default_sg_id}")
   
   return default_vpc_id, default_subnet_id, default_sg_id
+
 
 def launch_instance(instance_name, type, key_name='log8415-final', user_data=''):
   """
@@ -164,7 +192,9 @@ def launch_instance(instance_name, type, key_name='log8415-final', user_data='')
     print(f"Error during launching: {e}")
     return None
 
-def run_ssh_commands(client: SSHClient, commands: List) -> None:
+
+def run_ssh_commands(host_ip: str, commands: List) -> None:
+  client = create_ssh_client(host_ip)
   for cmd in commands:
     _, stdout, stderr = client.exec_command(cmd)
     stdout.channel.settimeout(15)
@@ -175,8 +205,11 @@ def run_ssh_commands(client: SSHClient, commands: List) -> None:
         print(err)
     except Exception as e:
       print(e)
+  client.close()
 
-def get_binary_log_coords(client: SSHClient):
+
+def get_binary_log_coords(host_ip: str):
+  client = create_ssh_client(host_ip)
   stdin, stdout, stderr = client.exec_command(
     "sudo mysql -uroot -prootpass -N -e 'SHOW MASTER STATUS;'"
   )
@@ -184,6 +217,8 @@ def get_binary_log_coords(client: SSHClient):
   # Columns: File  Position  Binlog_Do_DB  Binlog_Ignore_DB ...
   log_file = output[0]
   log_pos = int(output[1])
+  client.close()
+
   return log_file, log_pos
 
 def check_sakila_installation(instances) -> None:
@@ -200,9 +235,7 @@ def check_sakila_installation(instances) -> None:
   ]
 
   for instance in instances:
-    ssh_client = create_ssh_client(instance['public_ip'])
-    run_ssh_commands(ssh_client, commands)
-    ssh_client.close()
+    run_ssh_commands(instance['public_ip'], commands)
 
 def configure_db_for_replication(instances) -> None:
   source_ip = [inst['private_ip'] for inst in instances if inst['is_master']]
@@ -213,7 +246,6 @@ def configure_db_for_replication(instances) -> None:
   log_pos = ''
 
   for instance in instances:
-    ssh_client = create_ssh_client(instance['public_ip'])
     commands = []
 
     if instance['is_master']:
@@ -234,11 +266,9 @@ EOF'
         "sudo mysql -u root -prootpass -e 'FLUSH PRIVILEGES;'",
         "sudo mysql -u root -prootpass -e 'exit'"
       ]
-      run_ssh_commands(ssh_client, commands)    
-      log_file, log_pos = get_binary_log_coords(ssh_client)
+      run_ssh_commands(instance['public_ip'], commands)    
+      log_file, log_pos = get_binary_log_coords(instance['public_ip'])
     else:
-      print(f'LOG FILE: {log_file} and LOG POS: {log_pos}')
-      print(f"sudo mysql -u root -prootpass -e \"CHANGE REPLICATION SOURCE TO SOURCE_HOST='{source_ip[0]}', SOURCE_USER='repl', SOURCE_PASSWORD='replpass', SOURCE_LOG_FILE='{log_file}', SOURCE_LOG_POS={log_pos};\"")
       commands = [
 f"""sudo bash -c 'cat >> /etc/mysql/mysql.conf.d/mysqld.cnf <<EOF
 server-id={count}
@@ -253,7 +283,26 @@ EOF'
         "sudo mysql -u root -prootpass -e 'START REPLICA;'",
         "sudo mysql -u root -prootpass -e 'exit'"
       ]
-      run_ssh_commands(ssh_client, commands)    
+      run_ssh_commands(instance['public_ip'], commands)    
   
     count += 1
-    ssh_client.close()
+
+"""
+sudo apt install python3.12-venv -y
+python3 -m venv venv
+source venv/bin/activate
+pip install requests
+pip install pymysql
+pip install flask
+"""
+def run_flask_server(ip='', filename='', env_variables=''):
+  upload_files_to_instance(ip=ip, files=[filename])
+  without_ext = filename.split('.')[0]
+  commands = [
+    "sudo apt update -y",
+    "sudo apt install python3.12-venv -y",
+    "cd ~ && python3 -m venv venv",
+    "cd ~ && source venv/bin/activate && pip install requests pymysql flask",
+    f"cd ~ && nohup sudo {env_variables} ./venv/bin/python {filename} > {without_ext}.log 2>&1 & echo $! > {without_ext}.pid"
+  ]
+  run_ssh_commands(ip, commands)

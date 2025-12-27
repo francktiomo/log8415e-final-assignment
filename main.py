@@ -39,5 +39,31 @@ def main():
   logger.info('[STEP 4] Configure manager and workers for replication')
   configure_db_for_replication(instances)
 
+  logger.info('[STEP 5] Setup proxy')
+  proxy_user_data = """#!/bin/bash
+  sudo apt update
+  sudo apt install python3-pip -y
+  pip3 install flask pymysql"""
+  proxy = launch_instance(instance_name='proxy', type='t2.large', user_data=proxy_user_data)
+  instances.append(proxy)
+  run_flask_server(
+    ip=proxy['public_ip'],
+    filename='proxy.py',
+    env_variables=f"MANAGER_IP={manager['private_ip']} WORKERS_IPS='{worker1['private_ip']},{worker2['private_ip']}' MODE='custom'"
+  )
+  
+  logger.info('[STEP 6] Setup Gatekeeper')
+  gatekeeper_user_data = """#!/bin/bash
+  sudo apt update
+  sudo apt install python3-pip -y
+  pip3 install flask requests"""
+  gatekeeper = launch_instance(instance_name='gatekeeper', type='t2.large', user_data=gatekeeper_user_data)
+  instances.append(gatekeeper)
+  run_flask_server(
+    ip=gatekeeper['public_ip'],
+    filename='gatekeeper.py',
+    env_variables=f"PROXY_URL=http://{proxy['private_ip']}:5000/proxy API_KEY=secret123"
+  )
+
 if __name__ == '__main__':
   main()
