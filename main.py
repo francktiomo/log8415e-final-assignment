@@ -65,5 +65,10 @@ def main():
     env_variables=f"PROXY_URL=http://{proxy['private_ip']}:5000/proxy API_KEY=secret123"
   )
 
+  logger.info('[STEP 6] Stop Instances')
+  for instance in instances:
+    terminate_instance(instance['instance_id'])
+  
+
 if __name__ == '__main__':
   main()
