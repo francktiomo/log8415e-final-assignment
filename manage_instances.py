@@ -306,3 +306,33 @@ def run_flask_server(ip='', filename='', env_variables=''):
     f"cd ~ && nohup sudo {env_variables} ./venv/bin/python {filename} > {without_ext}.log 2>&1 & echo $! > {without_ext}.pid"
   ]
   run_ssh_commands(ip, commands)
+
+
+def terminate_instance(ec2, instance_id):
+  """
+  Terminate one or multiple EC2 instances and display state transitions.
+  
+  Args:
+    ec2 (boto3.client): EC2 client instance for AWS operations
+    instance_id (list): List of instance IDs (strings) to terminate
+  
+  Returns:
+    bool: True if termination request was successful, False if error occurred
+  """
+  instance_ids = instance_id if isinstance(instance_id, list) else [instance_id]
+  try:
+    response = ec2.terminate_instances(InstanceIds=instance_ids)
+    
+    print(f"Stopping instance {instance_id}...")
+    
+    # Check that the state is changing
+    for instance in response['TerminatingInstances']:
+      current_state = instance['CurrentState']['Name']
+      previous_state = instance['PreviousState']['Name']
+      print(f"   State: {previous_state} → {current_state}")
+  
+    return True
+    
+  except ClientError as e:
+    print(f"Error during stopping : {e}")
+    return False
