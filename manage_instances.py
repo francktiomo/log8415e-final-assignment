@@ -308,12 +308,11 @@ def run_flask_server(ip='', filename='', env_variables=''):
   run_ssh_commands(ip, commands)
 
 
-def terminate_instance(ec2, instance_id):
+def terminate_instance(instance_id):
   """
   Terminate one or multiple EC2 instances and display state transitions.
   
   Args:
-    ec2 (boto3.client): EC2 client instance for AWS operations
     instance_id (list): List of instance IDs (strings) to terminate
   
   Returns:
