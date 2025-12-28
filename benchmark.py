@@ -70,6 +70,3 @@ def run_benchmark(gatekeeper_ip: str) -> None:
     print("WRITE performance:", write_summary)
     print(stats.json())
 
-
-if __name__ == "__main__":
-  run_benchmark('98.92.72.16')
