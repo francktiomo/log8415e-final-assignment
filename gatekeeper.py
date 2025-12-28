@@ -17,6 +17,17 @@ DANGEROUS = [
     r"shutdown",
 ]
 
+
+@app.route("/stats")
+def get_stats():
+  key = request.headers.get("x-api-key")
+  if key != API_KEY:
+    return jsonify({"error": "Unauthorized"}), 403
+
+  resp = requests.get(f"{PROXY_URL}/stats").json()
+  return jsonify(resp)
+
+
 def is_safe(sql):
   lower = sql.lower()
   for d in DANGEROUS:
