@@ -3,6 +3,7 @@ import random
 import time
 import os
 
+from collections import Counter
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -13,7 +14,8 @@ DB_USER = "root"
 DB_PASS = "rootpass"
 DB_NAME = "sakila"
 
-FORWARDING_MODE = os.getenv("MODE", "direct")  # direct | random | custom
+MODE = "direct"
+stats = Counter()
 
 def get_conn(host):
   return pymysql.connect(
@@ -48,8 +50,47 @@ def fastest_worker():
   return best or random.choice(WORKERS)
 
 
-@app.route("/proxy", methods=["POST"])
-def proxy():
+def get_hostname(host):
+  hostname = ''
+  if host == MANAGER_HOST:
+    hostname = 'manager'
+  elif host == WORKERS[0]:
+      hostname = 'worker1'
+  else:
+    hostname = 'worker2'
+
+  return hostname
+
+
+@app.route("/set_mode", methods=["POST"])
+def set_mode():
+  global MODE
+
+  body = request.json
+  mode = body.get("mode", "").lower()
+
+  if mode not in ["direct", "random", "custom"]:
+      return jsonify({"error": "Invalid mode"}), 400
+
+  MODE = mode
+  return jsonify({"message": "mode updated", "mode": MODE}), 200
+
+
+@app.route("/stats")
+def get_stats():
+  global stats    
+  result = jsonify({
+    "mode": MODE,
+    "hits": dict(stats)
+  })
+  stats = Counter()
+  return result
+
+
+@app.route("/query", methods=["POST"])
+def query():
+  global MODE
+
   data = request.json
   sql = data.get("query")
 
@@ -57,17 +98,23 @@ def proxy():
     return jsonify({"error": "Missing query"}), 400
 
   try:
+    target_host = None
     if is_write_query(sql):
-      conn = get_conn(MANAGER_HOST)
+      target_host = MANAGER_HOST
     else:
-      if FORWARDING_MODE == "direct":
-        conn = get_conn(MANAGER_HOST)
+      if MODE == "direct":
+        target_host = MANAGER_HOST
 
-      elif FORWARDING_MODE == "random":
-        conn = get_conn(random.choice(WORKERS))
+      elif MODE == "random":
+        target_host = random.choice(WORKERS)
 
-      elif FORWARDING_MODE == "custom":
-        conn = get_conn(fastest_worker())
+      elif MODE == "custom":
+        target_host = fastest_worker()
+    
+    hostname = get_hostname(target_host)
+    stats[f'{target_host} ({hostname})'] += 1
+
+    conn = get_conn(target_host)
 
     cur = conn.cursor()
     cur.execute(sql)
