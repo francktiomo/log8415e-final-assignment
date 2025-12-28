@@ -1,7 +1,9 @@
 import boto3
 import logging
 
+from benchmark import run_benchmark
 from manage_instances import *
+
 
 
 # Configure logging
@@ -62,12 +64,15 @@ def main():
   run_flask_server(
     ip=gatekeeper['public_ip'],
     filename='gatekeeper.py',
-    env_variables=f"PROXY_URL=http://{proxy['private_ip']}:5000/proxy API_KEY=secret123"
+    env_variables=f"PROXY_URL=http://{proxy['private_ip']}:5000 API_KEY=secret123"
   )
 
-  logger.info('[STEP 6] Stop Instances')
-  for instance in instances:
-    terminate_instance(instance['instance_id'])
+  logger.info('[STEP 7] Benchmarking the cluster')
+  run_benchmark(gatekeeper_ip=gatekeeper['public_ip'])
+
+  logger.info('[STEP 8] Stop Instances')
+  # for instance in instances:
+  #   terminate_instance(instance['instance_id'])
   
 
 if __name__ == '__main__':
