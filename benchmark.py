@@ -68,7 +68,7 @@ def run_benchmark(gatekeeper_ip: str) -> None:
 
     print("READ performance:", read_summary)
     print("WRITE performance:", write_summary)
-    print(stats)
+    print(stats.json())
 
 
 if __name__ == "__main__":
