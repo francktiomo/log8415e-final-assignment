@@ -36,7 +36,20 @@ def is_safe(sql):
   return True
 
 
-@app.route("/gatekeeper", methods=["POST"])
+@app.route("/set_mode", methods=["POST"])
+def set_mode():
+  key = request.headers.get("x-api-key")
+  if key != API_KEY:
+    return jsonify({"error": "Unauthorized"}), 403
+
+  body = request.json
+  mode = body.get("mode", "")
+
+  resp = requests.post(f"{PROXY_URL}/set_mode", json={"mode": mode}).json()
+  return jsonify(resp)
+
+
+@app.route("/query", methods=["POST"])
 def handle_request():
     headers = request.headers
     key = headers.get("x-api-key")
@@ -51,9 +64,9 @@ def handle_request():
       return jsonify({"error": "No query provided"}), 400
 
     if not is_safe(sql):
-      return jsonify({"error": "Query rejected by Gatekeeper"}), 400
+      return jsonify({"error": "Unsafe query"}), 400
 
-    resp = requests.post(PROXY_URL, json={"query": sql}).json()
+    resp = requests.post(f"{PROXY_URL}/query", json={"query": sql}).json()
     return jsonify(resp)
 
 
