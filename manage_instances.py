@@ -4,7 +4,7 @@ import paramiko
 from botocore.exceptions import ClientError
 from paramiko import SSHClient
 from scp import SCPClient
-from typing import Dict, List, Tuple
+from typing import List
 
 UBUNTU_AMI = 'ami-0ecb62995f68bb549'
 ec2 = boto3.client('ec2')
@@ -16,7 +16,6 @@ def create_ssh_client(ip, key_path="log8415-final.pem", username="ubuntu") -> SS
     ip (str): Public IP address of the EC2 instance
     key_path (str): Path to the .pem private key
     username (str): SSH username
-
   Returns:
     paramiko.SSHClient: an active SSH client
   """
@@ -36,6 +35,7 @@ def upload_files_to_instance(ip, key_path="log8415-final.pem", local_folder='.',
     local_folder (str): Local folder containing files
     distant_folder (str): Distant folder where we want to copy files
     files (list[str]): list with filenames to copy
+  Returns: None
   """
   print(f"Transferring files to the {local_folder} : {files}")
 
@@ -60,6 +60,7 @@ def ensure_ports_open(ec2, sg_id, ports):
     ec2 (boto3.client): EC2 client instance for AWS operations
     sg_id (str): Id of the security group to modify
     ports (list[int]): Ports which needs to be opened
+  Returns: None
   """
   try:
     sg_info = ec2.describe_security_groups(GroupIds=[sg_id])["SecurityGroups"][0]
@@ -95,7 +96,6 @@ def get_default_resources(ec2, verbose=False):
   Args:
     ec2 (boto3.client): EC2 client instance for AWS operations
     verbose (bool, optional): If True, prints the retrieved resource IDs. Defaults to False.
-  
   Returns:
     tuple: A tuple containing (default_vpc_id, default_subnet_id, default_sg_id) as strings
   """
@@ -131,13 +131,13 @@ def get_default_resources(ec2, verbose=False):
 def launch_instance(instance_name, type, key_name='log8415-final', user_data=''):
   """
   Launch one or multiple EC2 instances with specified configuration and tags.
-  
   Args:
-    ec2 (boto3.client): EC2 client instance for AWS operations
-    type (str): EC2 instance type (e.g., 't2.micro', 't2.large')
     instance_name (str): Base name for the instances (will be suffixed with index)
+    type (str): EC2 instance type (e.g., 't2.micro', 't2.large')
     key_name (str, optional): Name of the SSH key pair. Defaults to 'vockey'.
-  
+    user_data (str, optional):
+      Optional user data script (cloud-init) to run at first boot.
+      Defaults to an empty string (no startup script).
   Returns:
     instance created
   """
@@ -194,6 +194,14 @@ def launch_instance(instance_name, type, key_name='log8415-final', user_data='')
 
 
 def run_ssh_commands(host_ip: str, commands: List) -> None:
+  """
+  Connect to a remote host over SSH and sequentially execute a list of commands.
+  Args:
+    host_ip (str): Public IP address of the remote host to connect to.
+    commands (List[str]): A list of shell commands to execute on the remote machine.
+  Returns:
+    None
+  """
   client = create_ssh_client(host_ip)
   for cmd in commands:
     _, stdout, stderr = client.exec_command(cmd)
@@ -209,6 +217,14 @@ def run_ssh_commands(host_ip: str, commands: List) -> None:
 
 
 def get_binary_log_coords(host_ip: str):
+  """
+  Retrieve the current MySQL binary log file name and position
+  from a remote host via SSH.
+  Args:
+    host_ip (str): Public or private IP address of the MySQL master server.
+  Returns:
+    tuple (log_file: str, log_pos: int): The current binary log filename and position, used for replication setup.
+  """
   client = create_ssh_client(host_ip)
   stdin, stdout, stderr = client.exec_command(
     "sudo mysql -uroot -prootpass -N -e 'SHOW MASTER STATUS;'"
@@ -224,9 +240,10 @@ def get_binary_log_coords(host_ip: str):
 def check_sakila_installation(instances) -> None:
   """
   Run sysbench to check if sakila is correctly installed on the instances
-  
-  :param instances: Instances on which sakila is installed
-  :type instances: List
+  Args:
+    instances: Instances on which sakila is installed
+  Returns: 
+    None
   """
 
   commands = [
@@ -289,6 +306,17 @@ EOF'
 
 
 def run_flask_server(ip='', filename='', env_variables=''):
+  """
+  Upload a Flask application to a remote instance and launch it
+  in a background virtual environment via SSH.
+  Args:
+    ip (str): Public IP address of the remote server.
+    filename (str): Name of the Python file to upload and run
+    env_variables (str, optional): Environment variable string to prepend before execution
+    (e.g., "PORT=5000 DB_HOST=...").
+  Returns:
+    None
+  """
   upload_files_to_instance(ip=ip, files=[filename])
   without_ext = filename.split('.')[0]
   commands = [
@@ -304,10 +332,8 @@ def run_flask_server(ip='', filename='', env_variables=''):
 def terminate_instance(instance_id):
   """
   Terminate one or multiple EC2 instances and display state transitions.
-  
   Args:
     instance_id (list): List of instance IDs (strings) to terminate
-  
   Returns:
     bool: True if termination request was successful, False if error occurred
   """
