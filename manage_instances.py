@@ -287,14 +287,7 @@ EOF'
   
     count += 1
 
-"""
-sudo apt install python3.12-venv -y
-python3 -m venv venv
-source venv/bin/activate
-pip install requests
-pip install pymysql
-pip install flask
-"""
+
 def run_flask_server(ip='', filename='', env_variables=''):
   upload_files_to_instance(ip=ip, files=[filename])
   without_ext = filename.split('.')[0]
