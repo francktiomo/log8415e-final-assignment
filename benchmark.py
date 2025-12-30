@@ -35,7 +35,6 @@ def run_benchmark(gatekeeper_ip: str) -> None:
     )
 
     # WRITES
-    print('WRITES')
     for i in range(NUMBER_OF_REQS):
       sql = f"INSERT INTO actor(actor_id, first_name, last_name, last_update) VALUES ({NUMBER_OF_ACTORS+i}, 'TEST','USER', NOW());"
       start = time.time()
@@ -46,7 +45,6 @@ def run_benchmark(gatekeeper_ip: str) -> None:
     NUMBER_OF_ACTORS += NUMBER_OF_REQS
 
     # READS
-    print('READS')
     for i in range(NUMBER_OF_REQS):
       actor_id = random.randint(1, NUMBER_OF_ACTORS)
       sql = f"SELECT * FROM actor WHERE actor_id={actor_id};"
@@ -69,4 +67,3 @@ def run_benchmark(gatekeeper_ip: str) -> None:
     print("READ performance:", read_summary)
     print("WRITE performance:", write_summary)
     print(stats.json())
-
