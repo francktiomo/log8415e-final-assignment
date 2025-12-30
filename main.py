@@ -23,7 +23,6 @@ def read_script(path):
     return f.read()
 
 def main():
-  ec2 = boto3.client('ec2', region_name='us-east-1')
   logger.info('========== AWS EC2 AUTOMATION SCRIPT STARTED ==========')
 
   logger.info('[STEP 1] Launching manager instance')
