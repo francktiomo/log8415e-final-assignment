@@ -71,8 +71,8 @@ def main():
   run_benchmark(gatekeeper_ip=gatekeeper['public_ip'])
 
   logger.info('[STEP 8] Stop Instances')
-  # for instance in instances:
-  #   terminate_instance(instance['instance_id'])
+  for instance in instances:
+    terminate_instance(instance['instance_id'])
   
 
 if __name__ == '__main__':
