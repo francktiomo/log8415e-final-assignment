@@ -18,6 +18,13 @@ MODE = "direct"
 stats = Counter()
 
 def get_conn(host):
+  """
+  Create and return a MySQL database connection to the specified host.
+  Args:
+    host (str):IP or hostname of the database server.
+  Returns:
+    pymysql.Connection: ctive MySQL connection object.
+  """
   return pymysql.connect(
     host=host,
     user=DB_USER,
@@ -27,11 +34,23 @@ def get_conn(host):
 
 
 def is_write_query(query: str) -> bool:
+  """
+  Determine whether an SQL query is a write operation.
+  Args:
+    query (str): QL query string to evaluate.
+  Returns:
+    bool: True if the query modifies data or structure, otherwise False.
+  """
   q = query.strip().lower()
   return q.startswith("insert") or q.startswith("update") or q.startswith("delete") or q.startswith("create")
 
 
 def fastest_worker():
+  """
+  Identify the worker with the lowest current connection latency.
+  Returns:
+    str: IP address of the fastest worker host. Falls back to a random worker if latency checks fail.
+  """
   best = None
   best_time = 99999
 
@@ -51,6 +70,13 @@ def fastest_worker():
 
 
 def get_hostname(host):
+  """
+  Resolve a database host IP to its logical hostname label.
+  Args:
+    host (str): Host IP address to resolve.
+  Returns:
+    str: Logical hostname string such as 'manager', 'worker1', or 'worker2'.
+  """
   hostname = ''
   if host == MANAGER_HOST:
     hostname = 'manager'
@@ -64,13 +90,18 @@ def get_hostname(host):
 
 @app.route("/set_mode", methods=["POST"])
 def set_mode():
+  """
+  Update the routing mode for database query handling.
+  Returns:
+    Flask Response: JSON response confirming the mode update or an error message.
+  """
   global MODE
 
   body = request.json
   mode = body.get("mode", "").lower()
 
   if mode not in ["direct", "random", "custom"]:
-      return jsonify({"error": "Invalid mode"}), 400
+    return jsonify({"error": "Invalid mode"}), 400
 
   MODE = mode
   return jsonify({"message": "mode updated", "mode": MODE}), 200
@@ -78,6 +109,11 @@ def set_mode():
 
 @app.route("/stats")
 def get_stats():
+  """
+  Retrieve and reset query routing statistics.
+  Returns:
+    Flask Response: JSON object containing current mode and hit counts per host.
+  """
   global stats    
   result = jsonify({
     "mode": MODE,
@@ -89,6 +125,11 @@ def get_stats():
 
 @app.route("/query", methods=["POST"])
 def query():
+  """
+  Process an incoming SQL query request and route it to the appropriate database host.
+  Returns:
+    Flask Response: Query execution result or an error message.
+  """
   global MODE
 
   data = request.json
