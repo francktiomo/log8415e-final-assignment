@@ -245,7 +245,6 @@ def check_sakila_installation(instances) -> None:
   Returns: 
     None
   """
-
   commands = [
     "sudo sysbench /usr/share/sysbench/oltp_read_only.lua --mysql-db=sakila --mysql-user='root' --mysql-password='rootpass' prepare",
     "sudo sysbench /usr/share/sysbench/oltp_read_only.lua --mysql-db=sakila --mysql-user='root' --mysql-password='rootpass' run",
